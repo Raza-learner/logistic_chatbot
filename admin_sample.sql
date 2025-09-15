@@ -1,58 +1,68 @@
-INSERT INTO customers (first_name, last_name, email, phone, address) VALUES
-('John', 'Doe', 'john.doe@example.com', '555-0101', '123 Main St, New York, NY 10001'),
-('Jane', 'Smith', 'jane.smith@example.com', '555-0102', '456 Oak Ave, Los Angeles, CA 90001'),
-('Alice', 'Johnson', 'alice.johnson@example.com', '555-0103', '789 Pine Rd, Chicago, IL 60601'),
-('Bob', 'Williams', 'bob.williams@example.com', '555-0104', '321 Elm St, Houston, TX 77001'),
-('Emma', 'Brown', 'emma.brown@example.com', '555-0105', '654 Cedar Ln, Miami, FL 33101');
+-- Insert Customers
+INSERT INTO Customers (name, email, phone, address) VALUES
+('John Doe', 'john.doe@example.com', '+12025550123', '123 Main St, New York, NY 10001'),
+('Alice Smith', 'alice.smith@example.com', '+12025550124', '456 Oak Ave, Miami, FL 33101'),
+('Bob Johnson', 'bob.johnson@example.com', '+12025550125', '789 Pine Rd, London, UK');
 
--- Inserting dummy shipment data
-INSERT INTO shipments (tracking_id, customer_id, package_status, origin, destination, weight, estimated_delivery) VALUES
-('TRK123456789', 1, 'In Transit', 'New York, NY', 'Boston, MA', 5.25, '2025-09-15'),
-('TRK987654321', 2, 'Delivered', 'Los Angeles, CA', 'San Francisco, CA', 3.10, '2025-09-07'),
-('TRK456789123', 3, 'Pending', 'Chicago, IL', 'Dallas, TX', 7.80, '2025-09-20'),
-('TRK789123456', 4, 'Delayed', 'Houston, TX', 'Seattle, WA', 4.50, '2025-09-12'),
-('TRK321654987', 5, 'Cancelled', 'Miami, FL', 'Atlanta, GA', 2.75, NULL);
+-- Insert Orders
+INSERT INTO Orders (customer_id, order_number, order_date, total_weight, dimensions, destination_address, shipping_method, status) VALUES
+(1, 'ORD12345', '2025-09-01 10:00:00', 5.00, '20x15x10 cm', '456 Queen St, Toronto, Canada', 'express', 'in_transit'),
+(2, 'ORD12346', '2025-09-02 12:00:00', 2.50, '10x10x5 cm', '123 King St, Tokyo, Japan', 'standard', 'pending'),
+(3, 'ORD12347', '2025-09-02 15:00:00', 7.00, '30x20x15 cm', '789 Elm St, Miami, FL 33101', 'economy', 'delivered'),
+(2, 'ORD12348', '2025-09-04 09:00:00', 3.50, '15x10x8 cm', '321 Maple St, Sydney, Australia', 'express', 'in_transit'),
+(3, 'ORD12349', '2025-09-05 11:00:00', 6.00, '25x20x12 cm', '654 Birch Rd, Berlin, Germany', 'standard', 'pending');
 
--- Inserting dummy warehouse data
-INSERT INTO warehouse (shipment_id, warehouse_location, stock_status) VALUES
-(1, 'New York Warehouse', 'In Stock'),
-(2, 'Los Angeles Warehouse', 'Out of Stock'),
-(3, 'Chicago Warehouse', 'Low Stock'),
-(4, 'Houston Warehouse', 'In Stock'),
-(5, 'Miami Warehouse', 'Out of Stock');
+-- Insert Shipments
+INSERT INTO Shipments (order_id, tracking_number, pickup_date, estimated_delivery_date, current_location, status) VALUES
+(1, 'TRK78901', '2025-09-02', '2025-09-05', 'Chicago, IL', 'in_transit'),
+(2, 'TRK78902', NULL, '2025-09-10', 'Miami, FL', 'pending'),
+(3, 'TRK78903', '2025-09-02', '2025-09-03', 'Miami, FL', 'delivered'),
+(4, 'TRK78904', '2025-09-04', '2025-09-07', 'Los Angeles, CA', 'in_transit'),
+(5, 'TRK78905', NULL, '2025-09-12', 'Miami, FL', 'pending');
 
--- Inserting dummy admin task data
-INSERT INTO admin_tasks (admin_id, task_description, task_status, completed_at) VALUES
-(1, 'Verify shipment TRK123456789 routing', 'In Progress', NULL),
-(2, 'Update customer details for John Doe', 'Completed', '2025-09-08 10:30:00'),
-(1, 'Resolve delay for TRK789123456', 'Pending', NULL),
-(3, 'Generate weekly delivery report', 'In Progress', NULL),
-(2, 'Coordinate restock for Chicago Warehouse', 'Completed', '2025-09-07 15:45:00');
+-- Insert Tracking Updates
+INSERT INTO Tracking_Updates (shipment_id, update_time, location, status_description) VALUES
+(1, '2025-09-01 09:00:00', 'New York, NY', 'Order received at warehouse'),
+(1, '2025-09-02 14:00:00', 'New York, NY', 'Package picked up from sender'),
+(1, '2025-09-02 18:00:00', 'Philadelphia, PA', 'In transit to sorting facility'),
+(1, '2025-09-03 08:00:00', 'Chicago, IL', 'Package in transit to destination'),
+(1, '2025-09-03 12:00:00', 'Chicago, IL', 'At local distribution center'),
+(1, '2025-09-04 09:00:00', 'Toronto, Canada', 'Package arrived at destination hub'),
+(3, '2025-09-03 10:00:00', 'Miami, FL', 'Package delivered to recipient'),
+(4, '2025-09-04 10:00:00', 'Miami, FL', 'Order received at warehouse'),
+(4, '2025-09-04 15:00:00', 'Los Angeles, CA', 'Package picked up from sender'),
+(4, '2025-09-05 06:00:00', 'Los Angeles, CA', 'Package in transit to destination'),
+(4, '2025-09-05 12:00:00', 'Dallas, TX', 'At sorting facility'),
+(5, '2025-09-05 12:00:00', 'Miami, FL', 'Order received at warehouse');
 
-INSERT INTO tracking_logs (tracking_id, log_time, log_description, location, status_update) VALUES
-('TRK123456789', '2025-09-06 08:00:00', 'Package received at warehouse', 'New York Warehouse', 'Received'),
-('TRK123456789', '2025-09-06 12:00:00', 'Package sorted for transit', 'New York Warehouse', 'Sorted'),
-('TRK123456789', '2025-09-07 06:00:00', 'Package departed warehouse', 'New York, NY', 'In Transit'),
-('TRK123456789', '2025-09-07 14:00:00', 'Package arrived at sorting facility', 'Hartford, CT', 'In Transit'),
-('TRK123456789', '2025-09-08 09:00:00', 'Package in transit to destination', 'Boston, MA', 'In Transit'),
-('TRK123456789', '2025-09-08 15:00:00', 'Package out for delivery', 'Boston, MA', 'Out for Delivery'),
-('TRK987654321', '2025-09-05 07:00:00', 'Package received at warehouse', 'Los Angeles Warehouse', 'Received'),
-('TRK987654321', '2025-09-05 11:00:00', 'Package sorted for transit', 'Los Angeles Warehouse', 'Sorted'),
-('TRK987654321', '2025-09-06 05:00:00', 'Package departed warehouse', 'Los Angeles, CA', 'In Transit'),
-('TRK987654321', '2025-09-06 13:00:00', 'Package arrived at sorting facility', 'San Francisco, CA', 'In Transit'),
-('TRK987654321', '2025-09-07 08:00:00', 'Package delivered to customer', 'San Francisco, CA', 'Delivered'),
-('TRK456789123', '2025-09-07 09:00:00', 'Package received at warehouse', 'Chicago Warehouse', 'Received'),
-('TRK456789123', '2025-09-07 14:00:00', 'Package sorted for transit', 'Chicago Warehouse', 'Sorted'),
-('TRK456789123', '2025-09-08 07:00:00', 'Package awaiting dispatch', 'Chicago, IL', 'Pending'),
-('TRK456789123', '2025-09-08 12:00:00', 'Package ready for transit', 'Chicago, IL', 'Pending'),
-('TRK456789123', '2025-09-09 06:00:00', 'Package scheduled for dispatch', 'Chicago, IL', 'Pending'),
-('TRK789123456', '2025-09-06 10:00:00', 'Package received at warehouse', 'Houston Warehouse', 'Received'),
-('TRK789123456', '2025-09-06 15:00:00', 'Package sorted for transit', 'Houston Warehouse', 'Sorted'),
-('TRK789123456', '2025-09-07 08:00:00', 'Package departed warehouse', 'Houston, TX', 'In Transit'),
-('TRK789123456', '2025-09-07 16:00:00', 'Delay due to weather conditions', 'Dallas, TX', 'Delayed'),
-('TRK789123456', '2025-09-08 10:00:00', 'Package rerouted to alternate facility', 'Austin, TX', 'Delayed'),
-('TRK321654987', '2025-09-05 09:00:00', 'Package received at warehouse', 'Miami Warehouse', 'Received'),
-('TRK321654987', '2025-09-05 14:00:00', 'Package sorted for transit', 'Miami Warehouse', 'Sorted'),
-('TRK321654987', '2025-09-06 08:00:00', 'Package cancelled by customer', 'Miami, FL', 'Cancelled'),
-('TRK321654987', '2025-09-06 10:00:00', 'Package returned to warehouse', 'Miami Warehouse', 'Cancelled'),
-('TRK321654987', '2025-09-07 09:00:00', 'Refund processed for cancellation', 'Miami, FL', 'Cancelled');
+-- Insert Shipment Logs
+INSERT INTO Shipment_Logs (tracking_number, log_type, log_description, log_time) VALUES
+('TRK78901', 'info', 'Package scanned at origin facility', '2025-09-01 08:30:00'),
+('TRK78901', 'info', 'Package assigned to carrier', '2025-09-02 13:00:00'),
+('TRK78901', 'warning', 'Minor delay due to sorting issue', '2025-09-02 17:00:00'),
+('TRK78901', 'info', 'Package departed sorting facility', '2025-09-03 07:30:00'),
+('TRK78901', 'note', 'Customer contacted regarding delivery', '2025-09-03 11:00:00'),
+('TRK78904', 'info', 'Package scanned at Miami facility', '2025-09-04 10:00:00'),
+('TRK78904', 'info', 'Assigned to international carrier', '2025-09-04 14:00:00'),
+('TRK78904', 'error', 'Customs documentation issue detected', '2025-09-04 16:00:00'),
+('TRK78904', 'info', 'Issue resolved, package cleared', '2025-09-05 08:00:00'),
+('TRK78904', 'note', 'Scheduled for international transit', '2025-09-05 11:00:00'),
+('TRK78905', 'info', 'Package received at warehouse', '2025-09-05 12:00:00'),
+('TRK78905', 'warning', 'Awaiting pickup confirmation', '2025-09-05 14:00:00'),
+('TRK78905', 'info', 'Package weight verified', '2025-09-05 15:00:00'),
+('TRK78905', 'note', 'Pending customer address verification', '2025-09-05 16:00:00'),
+('TRK78905', 'info', 'Ready for pickup scheduling', '2025-09-06 09:00:00');
+
+-- Insert Customer Queries
+INSERT INTO Customer_Queries (customer_id, order_id, query_text, response_text, query_status) VALUES
+(1, 1, 'Where is my package TRK78901?', 'Your package is in transit in Chicago, IL, expected delivery by Sep 5.', 'resolved'),
+(2, 2, 'Can I change the delivery address for ORD12346?', 'Please provide the new address.', 'open'),
+(3, 3, 'My package arrived damaged.', 'Please upload a photo of the damage.', 'escalated');
+
+-- Insert Admin Actions
+INSERT INTO Admin_Actions (admin_id, tracking_number, action_type, action_description, action_time) VALUES
+(1, 'TRK78901', 'view', 'Viewed shipment details', '2025-09-03 09:00:00'),
+(1, 'TRK78901', 'update_status', 'Updated status to in_transit', '2025-09-03 09:05:00'),
+(1, 'TRK78904', 'escalate', 'Escalated customs issue to supervisor', '2025-09-04 16:30:00'),
+(1, NULL, 'note', 'Reviewed pending shipments report', '2025-09-05 10:00:00'),
+(1, 'TRK78905', 'view', 'Checked package status', '2025-09-06 09:30:00');

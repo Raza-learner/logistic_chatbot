@@ -1,35 +1,39 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session
 import mysql.connector
+import mysql.connector.pooling
 import google.generativeai as genai
 import re
 import os
+import secrets
 from dotenv import load_dotenv
 
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(32)  # Secure random secret key for sessions
 
 # Load environment variables
 load_dotenv()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")  # Get from https://aistudio.google.com/app/apikey
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.5-flash')  # Corrected model name
 
-# Database configuration
+# Database configuration with pooling for optimization
 DB_CONFIG = {
     'user': 'chatbot_user',
     'password': 'raza@786',
     'host': 'localhost',
     'database': 'admin_db'
 }
+db_pool = mysql.connector.pooling.MySQLConnectionPool(pool_name="mypool", pool_size=5, **DB_CONFIG)
 
 def get_db_connection():
-    return mysql.connector.connect(**DB_CONFIG)
+    return db_pool.get_connection()
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/chat', methods=['POST'])
-def chat():
+@app.route('/admin_chat', methods=['POST'])
+def admin_chat():
     user_query = request.json.get('query')
     if not user_query:
         return jsonify({'response': 'Please enter a query.'})
@@ -38,117 +42,352 @@ def chat():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Extract tracking number or admin task request
-        tracking_match = re.search(r'TRK\d+', user_query)
-        admin_task_match = re.search(r'(show|list)\s+(all\s+)?admin\s+tasks', user_query, re.IGNORECASE)
         db_data = None
+        admin_id = 1  # Hardcoded for simplicity; use authentication in production
+
+        # Get or initialize chat history from session (for LLM context)
+        chat_history = session.get('chat_history', [])
+        # Limit to last 5 messages
+        if len(chat_history) > 5:
+            chat_history = chat_history[-5:]
+
+        # Extract tracking number, phone, or email
+        tracking_match = re.search(r'TRK\d+', user_query)
+        phone_match = re.search(r'\+[\d-]+', user_query)
+        email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', user_query)
+        query_id_match = re.search(r'query\s*ID\s*(\d+)', user_query, re.IGNORECASE)
+        respond_match = re.search(r'respond\s+to\s+query\s*ID\s*(\d+)\s+with\s+(.+)', user_query, re.IGNORECASE)
+
+        # Check for context (last tracking number)
+        last_tracking_number = session.get('last_tracking_number')
 
         if tracking_match:
             tracking_number = tracking_match.group(0)
-            # Query database for customer, shipment details, and tracking logs
+            session['last_tracking_number'] = tracking_number  # Store in session
+            # Query shipment details, tracking updates, shipment logs, customer info, and package details
             cursor.execute("""
-                SELECT c.first_name, c.last_name, c.email, c.phone, c.address,
-                       s.tracking_id, s.package_status, s.origin, s.destination, s.weight,
-                       s.estimated_delivery, tl.log_id, tl.log_type, tl.log_description, tl.log_time
-                FROM customers c
-                JOIN shipments s ON c.customer_id = s.customer_id
-                LEFT JOIN tracking_logs tl ON s.tracking_id = tl.tracking_id
-                WHERE s.tracking_id = %s
-                ORDER BY tl.log_time DESC
+                SELECT s.tracking_number, s.current_location, s.status, s.estimated_delivery_date,
+                       tu.update_time, tu.location, tu.status_description,
+                       sl.log_type, sl.log_description, sl.log_time,
+                       c.name, c.email, o.total_weight, o.dimensions, o.destination_address, o.shipping_method
+                FROM Shipments s
+                LEFT JOIN Tracking_Updates tu ON s.shipment_id = tu.shipment_id
+                LEFT JOIN Shipment_Logs sl ON s.tracking_number = sl.tracking_number
+                LEFT JOIN Orders o ON s.order_id = o.order_id
+                LEFT JOIN Customers c ON o.customer_id = c.customer_id
+                WHERE s.tracking_number = %s
+                ORDER BY tu.update_time DESC, sl.log_time DESC
             """, (tracking_number,))
             results = cursor.fetchall()
             if results:
-                tracking_logs = [
-                    {
-                        'log_id': r['log_id'],
-                        'log_type': r['log_type'],
-                        'description': r['log_description'],
-                        'time': str(r['log_time'])
-                    }
-                    for r in results if r['log_id']
+                tracking_history = [
+                    {'time': str(r['update_time']), 'location': r['location'], 'status': r['status_description']}
+                    for r in results if r['status_description']
+                ]
+                shipment_logs = [
+                    {'time': str(r['log_time']), 'type': r['log_type'], 'description': r['log_description']}
+                    for r in results if r['log_description']
                 ]
                 db_data = {
-                    'tracking_id': results[0]['tracking_id'],
-                    'customer': {
-                        'name': f"{results[0]['first_name']} {results[0]['last_name']}",
-                        'email': results[0]['email'],
-                        'phone': results[0]['phone'],
-                        'address': results[0]['address']
-                    },
-                    'package': {
-                        'status': results[0]['package_status'],
-                        'origin': results[0]['origin'],
-                        'destination': results[0]['destination'],
-                        'weight': results[0]['weight'],
-                        'estimated_delivery': str(results[0]['estimated_delivery']) if results[0]['estimated_delivery'] else 'N/A'
-                    },
-                    'tracking_logs': tracking_logs
+                    'tracking_number': results[0]['tracking_number'],
+                    'current_location': results[0]['current_location'],
+                    'status': results[0]['status'],
+                    'estimated_delivery_date': str(results[0]['estimated_delivery_date']),
+                    'customer_name': results[0]['name'],
+                    'customer_email': results[0]['email'],
+                    'package_weight': str(results[0]['total_weight']),
+                    'package_dimensions': results[0]['dimensions'],
+                    'destination_address': results[0]['destination_address'],
+                    'shipping_method': results[0]['shipping_method'],
+                    'tracking_history': tracking_history,
+                    'shipment_logs': shipment_logs
                 }
+                # Log admin action
+                cursor.execute("""
+                    INSERT INTO Admin_Actions (admin_id, tracking_number, action_type, action_description)
+                    VALUES (%s, %s, %s, %s)
+                """, (admin_id, tracking_number, 'view', f'Viewed details for {tracking_number}'))
+                conn.commit()
             else:
                 db_data = "No shipment found for this tracking number."
-        elif admin_task_match:
-            # Query database for all admin tasks
+        elif phone_match or email_match:
+            # Query by phone or email
+            identifier = phone_match.group(0) if phone_match else email_match.group(0)
+            field = 'phone' if phone_match else 'email'
             cursor.execute("""
-                SELECT task_id, admin_id, task_description, task_status, created_at, completed_at
-                FROM admin_tasks
-                ORDER BY created_at DESC
-            """)
+                SELECT s.tracking_number, s.current_location, s.status, s.estimated_delivery_date,
+                       tu.update_time, tu.location, tu.status_description,
+                       sl.log_type, sl.log_description, sl.log_time,
+                       c.name, c.email, o.total_weight, o.dimensions, o.destination_address, o.shipping_method
+                FROM Shipments s
+                LEFT JOIN Tracking_Updates tu ON s.shipment_id = tu.shipment_id
+                LEFT JOIN Shipment_Logs sl ON s.tracking_number = sl.tracking_number
+                LEFT JOIN Orders o ON s.order_id = o.order_id
+                LEFT JOIN Customers c ON o.customer_id = c.customer_id
+                WHERE c.""" + field + """ = %s
+                ORDER BY tu.update_time DESC, sl.log_time DESC
+            """, (identifier,))
             results = cursor.fetchall()
             if results:
-                db_data = {
-                    'admin_tasks': [
-                        {
-                            'task_id': r['task_id'],
-                            'admin_id': r['admin_id'],
-                            'description': r['task_description'],
-                            'status': r['task_status'],
-                            'created_at': str(r['created_at']),
-                            'completed_at': str(r['completed_at']) if r['completed_at'] else None
-                        }
-                        for r in results
+                tracking_numbers = list(set(r['tracking_number'] for r in results))
+                session['last_tracking_number'] = tracking_numbers[0] if tracking_numbers else None  # Store first tracking number
+                shipments = []
+                for tn in tracking_numbers:
+                    tn_results = [r for r in results if r['tracking_number'] == tn]
+                    tracking_history = [
+                        {'time': str(r['update_time']), 'location': r['location'], 'status': r['status_description']}
+                        for r in tn_results if r['status_description']
                     ]
-                }
+                    shipment_logs = [
+                        {'time': str(r['log_time']), 'type': r['log_type'], 'description': r['log_description']}
+                        for r in tn_results if r['log_description']
+                    ]
+                    shipments.append({
+                        'tracking_number': tn,
+                        'current_location': tn_results[0]['current_location'],
+                        'status': tn_results[0]['status'],
+                        'estimated_delivery_date': str(tn_results[0]['estimated_delivery_date']),
+                        'customer_name': tn_results[0]['name'],
+                        'customer_email': tn_results[0]['email'],
+                        'package_weight': str(tn_results[0]['total_weight']),
+                        'package_dimensions': tn_results[0]['dimensions'],
+                        'destination_address': tn_results[0]['destination_address'],
+                        'shipping_method': tn_results[0]['shipping_method'],
+                        'tracking_history': tracking_history,
+                        'shipment_logs': shipment_logs
+                    })
+                db_data = {'shipments': shipments}
+                # Log admin action
+                cursor.execute("""
+                    INSERT INTO Admin_Actions (admin_id, action_type, action_description)
+                    VALUES (%s, %s, %s)
+                """, (admin_id, 'view', f'Viewed shipments for {field} {identifier}'))
+                conn.commit()
             else:
-                db_data = "No admin tasks found."
-        else:
-            # Log general queries (for simplicity, assume customer_id=1)
-            cursor.execute("INSERT INTO Customer_Queries (customer_id, query_text) VALUES (1, %s)", (user_query,))
+                db_data = f"No shipments found for {field} {identifier}."
+        elif 'status' in user_query.lower() and last_tracking_number:
+            # Use last tracking number from session
+            cursor.execute("""
+                SELECT s.tracking_number, s.current_location, s.status, s.estimated_delivery_date,
+                       tu.update_time, tu.location, tu.status_description,
+                       sl.log_type, sl.log_description, sl.log_time,
+                       c.name, c.email, o.total_weight, o.dimensions, o.destination_address, o.shipping_method
+                FROM Shipments s
+                LEFT JOIN Tracking_Updates tu ON s.shipment_id = tu.shipment_id
+                LEFT JOIN Shipment_Logs sl ON s.tracking_number = sl.tracking_number
+                LEFT JOIN Orders o ON s.order_id = o.order_id
+                LEFT JOIN Customers c ON o.customer_id = c.customer_id
+                WHERE s.tracking_number = %s
+                ORDER BY tu.update_time DESC, sl.log_time DESC
+            """, (last_tracking_number,))
+            results = cursor.fetchall()
+            if results:
+                tracking_history = [
+                    {'time': str(r['update_time']), 'location': r['location'], 'status': r['status_description']}
+                    for r in results if r['status_description']
+                ]
+                shipment_logs = [
+                    {'time': str(r['log_time']), 'type': r['log_type'], 'description': r['log_description']}
+                    for r in results if r['log_description']
+                ]
+                db_data = {
+                    'tracking_number': results[0]['tracking_number'],
+                    'current_location': results[0]['current_location'],
+                    'status': results[0]['status'],
+                    'estimated_delivery_date': str(results[0]['estimated_delivery_date']),
+                    'customer_name': results[0]['name'],
+                    'customer_email': results[0]['email'],
+                    'package_weight': str(results[0]['total_weight']),
+                    'package_dimensions': results[0]['dimensions'],
+                    'destination_address': results[0]['destination_address'],
+                    'shipping_method': results[0]['shipping_method'],
+                    'tracking_history': tracking_history,
+                    'shipment_logs': shipment_logs
+                }
+                # Log admin action
+                cursor.execute("""
+                    INSERT INTO Admin_Actions (admin_id, tracking_number, action_type, action_description)
+                    VALUES (%s, %s, %s, %s)
+                """, (admin_id, last_tracking_number, 'view', f'Viewed details for {last_tracking_number} using context'))
+                conn.commit()
+            else:
+                db_data = "No shipment found for the last tracking number."
+        elif 'list all shipments' in user_query.lower():
+            # List all shipments
+            cursor.execute("""
+                SELECT s.tracking_number, s.current_location, s.status, s.estimated_delivery_date,
+                       c.name, c.email, o.total_weight, o.dimensions, o.destination_address, o.shipping_method
+                FROM Shipments s
+                LEFT JOIN Orders o ON s.order_id = o.order_id
+                LEFT JOIN Customers c ON o.customer_id = c.customer_id
+            """)
+            results = cursor.fetchall()
+            db_data = [
+                {
+                    'tracking_number': r['tracking_number'],
+                    'current_location': r['current_location'],
+                    'status': r['status'],
+                    'estimated_delivery_date': str(r['estimated_delivery_date']),
+                    'customer_name': r['name'],
+                    'customer_email': r['email'],
+                    'package_weight': str(r['total_weight']),
+                    'package_dimensions': r['dimensions'],
+                    'destination_address': r['destination_address'],
+                    'shipping_method': r['shipping_method']
+                } for r in results
+            ]
+            cursor.execute("""
+                INSERT INTO Admin_Actions (admin_id, action_type, action_description)
+                VALUES (%s, %s, %s)
+            """, (admin_id, 'view', 'Listed all shipments'))
             conn.commit()
-            db_data = "Query logged. Awaiting response."
+        elif 'customer queries' in user_query.lower():
+            # List customer queries
+            status = 'open' if 'open' in user_query.lower() else 'escalated' if 'escalated' in user_query.lower() else None
+            query = """
+                SELECT cq.query_id, cq.customer_id, cq.query_text, cq.query_status, cq.created_at, cq.response_text,
+                       c.name, c.email
+                FROM Customer_Queries cq
+                LEFT JOIN Customers c ON cq.customer_id = c.customer_id
+            """
+            params = []
+            if status:
+                query += " WHERE cq.query_status = %s"
+                params.append(status)
+            cursor.execute(query, params)
+            results = cursor.fetchall()
+            db_data = [
+                {
+                    'query_id': r['query_id'],
+                    'customer_id': r['customer_id'],
+                    'customer_name': r['name'],
+                    'customer_email': r['email'],
+                    'query_text': r['query_text'],
+                    'query_status': r['query_status'],
+                    'created_at': str(r['created_at']),
+                    'response_text': r['response_text']
+                } for r in results
+            ]
+            cursor.execute("""
+                INSERT INTO Admin_Actions (admin_id, action_type, action_description)
+                VALUES (%s, %s, %s)
+            """, (admin_id, 'view', f'Viewed {"all" if not status else status} customer queries'))
+            conn.commit()
+        elif respond_match:
+            # Respond to a customer query
+            query_id = respond_match.group(1)
+            response_text = respond_match.group(2)
+            cursor.execute("""
+                UPDATE Customer_Queries
+                SET response_text = %s, query_status = %s
+                WHERE query_id = %s
+            """, (response_text, 'resolved', query_id))
+            if cursor.rowcount > 0:
+                db_data = f"Query ID {query_id} responded with: {response_text}"
+                cursor.execute("""
+                    INSERT INTO Admin_Actions (admin_id, action_type, action_description)
+                    VALUES (%s, %s, %s)
+                """, (admin_id, 'note', f'Responded to query ID {query_id} with: {response_text}'))
+                conn.commit()
+            else:
+                db_data = f"No query found with ID {query_id}."
+        elif 'admin actions' in user_query.lower():
+            # List recent admin actions
+            cursor.execute("""
+                SELECT action_id, admin_id, tracking_number, action_type, action_description, action_time
+                FROM Admin_Actions
+                ORDER BY action_time DESC LIMIT 10
+            """)
+            results = cursor.fetchall()
+            db_data = [
+                {
+                    'action_id': r['action_id'],
+                    'admin_id': r['admin_id'],
+                    'tracking_number': r['tracking_number'],
+                    'action_type': r['action_type'],
+                    'action_description': r['action_description'],
+                    'action_time': str(r['action_time'])
+                } for r in results
+            ]
+            cursor.execute("""
+                INSERT INTO Admin_Actions (admin_id, action_type, action_description)
+                VALUES (%s, %s, %s)
+            """, (admin_id, 'view', 'Viewed recent admin actions'))
+            conn.commit()
+        elif 'update status' in user_query.lower():
+            # Update shipment status
+            tracking_match = re.search(r'TRK\d+', user_query)
+            status_match = re.search(r'to\s+(\w+)', user_query)
+            tracking_number = tracking_match.group(0) if tracking_match else last_tracking_number
+            if tracking_number and status_match:
+                new_status = status_match.group(1)
+                cursor.execute("""
+                    UPDATE Shipments SET status = %s WHERE tracking_number = %s
+                """, (new_status, tracking_number))
+                conn.commit()
+                db_data = f"Status for {tracking_number} updated to {new_status}."
+                session['last_tracking_number'] = tracking_number  # Update session
+                cursor.execute("""
+                    INSERT INTO Admin_Actions (admin_id, tracking_number, action_type, action_description)
+                    VALUES (%s, %s, %s, %s)
+                """, (admin_id, tracking_number, 'update_status', f'Updated status to {new_status}'))
+                conn.commit()
+            else:
+                db_data = "Please provide a valid tracking number and status, or use the last tracking number."
+        else:
+            # Log general query
+            cursor.execute("""
+                INSERT INTO Admin_Actions (admin_id, action_type, action_description)
+                VALUES (%s, %s, %s)
+            """, (admin_id, 'note', f'General query: {user_query}'))
+            conn.commit()
+            db_data = "Query logged for review."
 
         cursor.close()
         conn.close()
 
         # Generate response using Gemini
-        prompt = f"""
-        You are a knowledgeable and helpful logistics chatbot for a global shipping company, designed to assist admins with customer and package inquiries and administrative tasks. Respond politely, professionally, and concisely in a human-like tone. Use only the provided database results—do not invent information.
+        prompt = """
+        You are a knowledgeable and helpful logistics admin chatbot for a global shipping company. Your goal is to assist admins with managing shipments, customer queries, and system logs. Respond politely, professionally, and concisely in a human-like tone. Use only the provided database results—do not invent information.
 
         **Guidelines**:
-        - Identify query type (tracking, admin tasks, or general).
-        - For tracking queries (e.g., TRK123456789), provide the following in a list format, with each item on a new line:
-            Tracking ID: [tracking_id]
-            Customer Name: [customer.name]
-            Customer Email: [customer.email]
-            Customer Phone: [customer.phone]
-            Customer Address: [customer.address]
-            Package Status: [package.status]
-            Origin: [package.origin]
-            Destination: [package.destination]
-            Weight: [package.weight] kg
-            Estimated Delivery Date: [package.estimated_delivery]
-            Tracking Logs: List all logs in chronological order (newest to oldest), each as "[time]: [log_type] - [description]"
-        - For admin task queries (e.g., "show all admin tasks"), list all tasks in chronological order (newest to oldest), each as:
-            Task ID: [task_id], Admin ID: [admin_id], Description: [description], Status: [status], Created: [created_at], Completed: [completed_at]
-        - If no data is found, apologize and suggest alternatives (e.g., "I couldn't find that tracking ID. Please double-check or provide more details.").
-        - For general queries, acknowledge logging and provide high-level guidance.
-        - For actions like modifications, mention escalation.
-        - End with: "Is there anything else I can assist with?"
+        - Do not make rendom format , please maintain one format.
+        - Read "{user_query}" properly and give answer that much ask, do not give extra info. 
+        - Maintain context: If a tracking number was used previously, use it for queries like "status" unless a new tracking number, phone, or email is provided. Refer to chat history for previous context.
+        - Identify query type (tracking, phone/email lookup, list shipments, customer queries, respond to query, admin actions, status update, general).
+        - For tracking queries (e.g., TRK78901 or last tracking number), provide in a list format, each item on a new line:
+          - Tracking Number: [tracking_number]
+          - Current Status: [status]
+          - Current Location: [current_location]
+          - Estimated Delivery Date: [estimated_delivery_date]
+          - Customer Name: [customer_name]
+          - Customer Email: [customer_email]
+          - Package Weight: [package_weight]
+          - Package Dimensions: [package_dimensions]
+          - Destination Address: [destination_address]
+        - Shipping Method: [shipping_method]
+        - Tracking Updates: List all customer-facing status changes in chronological order (oldest to newest), each as "[time]: [location] - [status]".
+        - Shipment Logs: List all internal system notes, warnings, or errors in chronological order (oldest to newest), each as "[time]: [type] - [description]".
+        - For phone or email queries, list all associated shipments in the same list format, grouping by tracking number.
+        - For listing shipments, provide a summary of all shipments (tracking number, status, location, customer name, email, weight, dimensions).
+        - For customer queries, list details (ID, customer name, email, query text, status, response if any) in a list format, each item on a new line.
+        - For responding to queries (e.g., "Respond to query ID X with Y"), confirm the response and status update (resolved).
+        - For admin actions, list recent actions (ID, admin ID, tracking number, type, description, time) in a list format.
+        - For status updates, confirm the update or request clarification if invalid, using the last tracking number if none provided.
+        - If no data is found, apologize and suggest alternatives.
+        - Log all actions in the database.
+        - Do not hallucinate.
+        - Previous Chat History: {chat_history}
 
         **User Query**: "{user_query}"
         **Database Results**: {db_data}
         """
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt.format(user_query=user_query, db_data=db_data, chat_history=chat_history))
         bot_response = response.text.strip()
+
+        # Update chat history in session
+        chat_history.append({'query': user_query, 'response': bot_response})
+        session['chat_history'] = chat_history
 
         return jsonify({'response': bot_response})
 

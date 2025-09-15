@@ -10,12 +10,10 @@
             margin: 20px;
             transition: background-color 0.3s, color 0.3s;
         }
-        /* Light mode (default) */
         body.light-mode {
             background-color: #ffffff;
             color: #333333;
         }
-        /* Dark mode */
         body.dark-mode {
             background-color: #1a1a1a;
             color: #e0e0e0;
@@ -48,23 +46,20 @@
             border: none;
             font-size: 24px;
         }
-        /* Ensure chat messages inherit theme */
         #chat-window p {
             margin: 5px 0;
             color: inherit;
         }
-        /* SVG icon colors */
         .sun-icon {
-            fill: #f1c40f; /* Yellow for sun */
+            fill: #f1c40f;
         }
         .moon-icon {
-            fill: #e0e0e0; /* Light gray for moon */
+            fill: #e0e0e0;
         }
     </style>
 </head>
 <body class="light-mode">
     <button id="theme-toggle" title="Toggle Dark/Light Mode">
-        <!-- Sun icon (visible in light mode) -->
         <svg id="sun-icon" class="sun-icon" width="24" height="24" viewBox="0 0 24 24" style="display: inline;">
             <circle cx="12" cy="12" r="5"/>
             <line x1="12" y1="1" x2="12" y2="3"/>
@@ -76,24 +71,21 @@
             <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
         </svg>
-        <!-- Moon icon (visible in dark mode) -->
         <svg id="moon-icon" class="moon-icon" width="24" height="24" viewBox="0 0 24 24" style="display: none;">
             <path d="M21.4,13.7C20.6,13.9,19.8,14,19,14c-5,0-9-4-9-9c0-0.8,0.1-1.6,0.3-2.4C6.1,3.7,3,7.6,3,12c0,5,4,9,9,9c4.4,0,8.3-3.1,9.4-7.3C21.6,13.7,21.5,13.7,21.4,13.7z"/>
         </svg>
     </button>
     <h1>Logistics Chatbot</h1>
     <div id="chat-window"></div>
-    <input type="text" id="user-input" placeholder="Type your query (e.g., Where is TRK78901?)">
+    <input type="text" id="user-input" placeholder="Type your query (e.g., Details for TRK78901, List all shipments)">
     <button onclick="sendMessage()">Send</button>
 
     <script>
-        // Theme toggle functionality
         const body = document.body;
         const themeToggle = document.getElementById('theme-toggle');
         const sunIcon = document.getElementById('sun-icon');
         const moonIcon = document.getElementById('moon-icon');
 
-        // Load saved theme from localStorage
         if (localStorage.getItem('theme') === 'dark') {
             body.classList.remove('light-mode');
             body.classList.add('dark-mode');
@@ -115,17 +107,16 @@
             }
         });
 
-        // Chat functionality (unchanged)
         function sendMessage() {
             const input = document.getElementById('user-input');
             const query = input.value.trim();
             if (!query) return;
 
             const chatWindow = document.getElementById('chat-window');
-            chatWindow.innerHTML += `<p><strong>User:</strong> ${query}</p>`;
+            chatWindow.innerHTML += `<p><strong>Admin:</strong> ${query}</p>`;
             input.value = '';
 
-            fetch('/chat', {
+            fetch('/admin_chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query })
