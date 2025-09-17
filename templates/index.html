@@ -5,133 +5,300 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Logistics Chatbot</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            transition: background-color 0.3s, color 0.3s;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 0.3s;
         }
-        body.light-mode {
-            background-color: #ffffff;
-            color: #333333;
-        }
+
         body.dark-mode {
-            background-color: #1a1a1a;
+            background: linear-gradient(135deg, #1e1e1e 0%, #434343 100%);
             color: #e0e0e0;
         }
-        #chat-window {
-            border: 1px solid #ccc;
-            padding: 10px;
-            height: 300px;
-            overflow-y: scroll;
-            margin-bottom: 10px;
-            background-color: inherit;
-            color: inherit;
+
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            height: 80vh;
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: background 0.3s, color 0.3s;
         }
-        #user-input {
-            width: 80%;
-            padding: 10px;
-            background-color: inherit;
-            color: inherit;
-            border: 1px solid #ccc;
+
+        .dark-mode .chat-container {
+            background: #2a2a2a;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
-        button {
-            padding: 10px;
-            cursor: pointer;
+
+        .chat-header {
+            background: #007bff;
+            color: white;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        #theme-toggle {
-            position: absolute;
-            top: 20px;
-            right: 20px;
+
+        .dark-mode .chat-header {
+            background: #005bbb;
+        }
+
+        .chat-header h2 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+
+        .theme-toggle {
             background: none;
             border: none;
-            font-size: 24px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: white;
         }
-        #chat-window p {
-            margin: 5px 0;
-            color: inherit;
+
+        .chat-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            scroll-behavior: smooth;
         }
-        .sun-icon {
-            fill: #f1c40f;
+
+        .chat-message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
         }
-        .moon-icon {
-            fill: #e0e0e0;
+
+        .chat-message.user {
+            justify-content: flex-end;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 15px;
+            line-height: 1.4;
+            position: relative;
+            animation: slideIn 0.3s ease;
+        }
+
+        .chat-message.user .message-bubble {
+            background: #007bff;
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .dark-mode .chat-message.user .message-bubble {
+            background: #005bbb;
+        }
+
+        .chat-message.bot .message-bubble {
+            background: #e9ecef;
+            color: #333;
+            border-bottom-left-radius: 5px;
+        }
+
+        .dark-mode .chat-message.bot .message-bubble {
+            background: #3a3a3a;
+            color: #e0e0e0;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 10px 15px;
+            color: #666;
+        }
+
+        .dark-mode .typing-indicator {
+            color: #aaa;
+        }
+
+        .typing-indicator span {
+            animation: blink 1s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        .chat-footer {
+            padding: 15px;
+            background: #f8f9fa;
+            border-top: 1px solid #ddd;
+        }
+
+        .dark-mode .chat-footer {
+            background: #222;
+            border-top: 1px solid #444;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            outline: none;
+            font-size: 1rem;
+            transition: border 0.3s;
+        }
+
+        .dark-mode input[type="text"] {
+            background: #333;
+            color: #e0e0e0;
+            border: 1px solid #555;
+        }
+
+        input[type="text"]:focus {
+            border-color: #007bff;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            background: #007bff;
+            color: white;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s;
+        }
+
+        .dark-mode button {
+            background: #005bbb;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .chat-container {
+                height: 100vh;
+                border-radius: 0;
+            }
         }
     </style>
 </head>
-<body class="light-mode">
-    <button id="theme-toggle" title="Toggle Dark/Light Mode">
-        <svg id="sun-icon" class="sun-icon" width="24" height="24" viewBox="0 0 24 24" style="display: inline;">
-            <circle cx="12" cy="12" r="5"/>
-            <line x1="12" y1="1" x2="12" y2="3"/>
-            <line x1="12" y1="21" x2="12" y2="23"/>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-            <line x1="1" y1="12" x2="3" y2="12"/>
-            <line x1="21" y1="12" x2="23" y2="12"/>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-        <svg id="moon-icon" class="moon-icon" width="24" height="24" viewBox="0 0 24 24" style="display: none;">
-            <path d="M21.4,13.7C20.6,13.9,19.8,14,19,14c-5,0-9-4-9-9c0-0.8,0.1-1.6,0.3-2.4C6.1,3.7,3,7.6,3,12c0,5,4,9,9,9c4.4,0,8.3-3.1,9.4-7.3C21.6,13.7,21.5,13.7,21.4,13.7z"/>
-        </svg>
-    </button>
-    <h1>Logistics Chatbot</h1>
-    <div id="chat-window"></div>
-    <input type="text" id="user-input" placeholder="Type your query (e.g., Details for TRK78901, List all shipments)">
-    <button onclick="sendMessage()">Send</button>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>Logistics Chatbot</h2>
+            <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+        </div>
+        <div class="chat-body" id="chatBody">
+            <div class="chat-message bot">
+                <div class="message-bubble">
+                    Welcome to the Logistics Chatbot! How can I assist you today?
+                </div>
+            </div>
+        </div>
+        <div class="typing-indicator" id="typingIndicator">
+            Bot is typing<span>.</span><span>.</span><span>.</span>
+        </div>
+        <div class="chat-footer">
+            <div class="chat-input">
+                <input type="text" id="userInput" placeholder="Type your query (e.g., TRK12345, list shipments, customer queries)..." onkeypress="if(event.key === 'Enter') sendMessage()">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
 
     <script>
-        const body = document.body;
-        const themeToggle = document.getElementById('theme-toggle');
-        const sunIcon = document.getElementById('sun-icon');
-        const moonIcon = document.getElementById('moon-icon');
+        const chatBody = document.getElementById('chatBody');
+        const userInput = document.getElementById('userInput');
+        const typingIndicator = document.getElementById('typingIndicator');
 
-        if (localStorage.getItem('theme') === 'dark') {
-            body.classList.remove('light-mode');
-            body.classList.add('dark-mode');
-            sunIcon.style.display = 'none';
-            moonIcon.style.display = 'inline';
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const themeButton = document.querySelector('.theme-toggle');
+            themeButton.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
         }
 
-        themeToggle.addEventListener('click', () => {
-            body.classList.toggle('light-mode');
-            body.classList.toggle('dark-mode');
-            if (body.classList.contains('dark-mode')) {
-                sunIcon.style.display = 'none';
-                moonIcon.style.display = 'inline';
-                localStorage.setItem('theme', 'dark');
-            } else {
-                sunIcon.style.display = 'inline';
-                moonIcon.style.display = 'none';
-                localStorage.setItem('theme', 'light');
-            }
-        });
-
-        function sendMessage() {
-            const input = document.getElementById('user-input');
-            const query = input.value.trim();
+        async function sendMessage() {
+            const query = userInput.value.trim();
             if (!query) return;
 
-            const chatWindow = document.getElementById('chat-window');
-            chatWindow.innerHTML += `<p><strong>Admin:</strong> ${query}</p>`;
-            input.value = '';
+            // Add user message
+            const userMessage = document.createElement('div');
+            userMessage.className = 'chat-message user';
+            userMessage.innerHTML = `<div class="message-bubble">${query}</div>`;
+            chatBody.appendChild(userMessage);
+            userInput.value = '';
+            chatBody.scrollTop = chatBody.scrollHeight;
 
-            fetch('/admin_chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query })
-            })
-            .then(response => response.json())
-            .then(data => {
-                chatWindow.innerHTML += `<p><strong>Bot:</strong> ${data.response}</p>`;
-                chatWindow.scrollTop = chatWindow.scrollHeight;
-            })
-            .catch(error => console.error('Error:', error));
+            // Show typing indicator
+            typingIndicator.style.display = 'block';
+
+            try {
+                const response = await fetch('/admin_chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const data = await response.json();
+
+                // Hide typing indicator
+                typingIndicator.style.display = 'none';
+
+                // Add bot response
+                const botMessage = document.createElement('div');
+                botMessage.className = 'chat-message bot';
+                botMessage.innerHTML = `<div class="message-bubble">${data.response.replace(/\n/g, '<br>')}</div>`;
+                chatBody.appendChild(botMessage);
+                chatBody.scrollTop = chatBody.scrollHeight;
+            } catch (error) {
+                console.error('Error:', error);
+                typingIndicator.style.display = 'none';
+                const errorMessage = document.createElement('div');
+                errorMessage.className = 'chat-message bot';
+                errorMessage.innerHTML = `<div class="message-bubble">Sorry, an error occurred. Please try again.</div>`;
+                chatBody.appendChild(errorMessage);
+                chatBody.scrollTop = chatBody.scrollHeight;
+            }
         }
-
-        document.getElementById('user-input').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') sendMessage();
-        });
     </script>
 </body>
 </html>

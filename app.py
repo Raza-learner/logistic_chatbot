@@ -352,6 +352,7 @@ def admin_chat():
 
         **Guidelines**:
         - Do not make rendom format , please maintain one format.
+        
         - Read "{user_query}" properly and give answer that much ask, do not give extra info. 
         - Maintain context: If a tracking number was used previously, use it for queries like "status" unless a new tracking number, phone, or email is provided. Refer to chat history for previous context.
         - Identify query type (tracking, phone/email lookup, list shipments, customer queries, respond to query, admin actions, status update, general).
