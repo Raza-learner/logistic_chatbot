@@ -16,8 +16,7 @@
     "PYTHON_VERSION": "3.12"
   },
   "functions": {
-    "app.py": {
-      "maxDuration": 30     
+    "app.py": { 
     }
   }
 }
