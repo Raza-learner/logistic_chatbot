@@ -13,12 +13,12 @@
     }
   ],
   "env": {
-    "PYTHON_VERSION": "3.12"  // Use latest stable; check Vercel support
+    "PYTHON_VERSION": "3.12"
   },
   "functions": {
     "app.py": {
-      "maxDuration": 30,  // Increase if needed (max 60s on Pro)
-      "memory": 1024      // MB; default 128, up to 3008
+      "maxDuration": 30,  
+      "memory": 1024      
     }
   }
 }
